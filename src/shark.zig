@@ -48,16 +48,7 @@ var moved: bool = false;
 const data = [1]u8{0b1111_1111};
 pub fn update() void {
     //update
-    w4.DRAW_COLORS.* = 0x0040;
-    w4.blit(&data, 30, 0, 4, 2, w4.BLIT_1BPP);
     const gamepad = w4.GAMEPAD1.*;
-    w4.DRAW_COLORS.* = 0x0002;
-    // w4.text("!!", 0, 20);
-    // if (gamepad != 0) {
-    var buf: [20]u8 = undefined;
-    const printed = std.fmt.bufPrint(&buf, "{}", .{gamepad}) catch unreachable;
-    w4.text(printed, 0, 0);
-    // }
 
     const curr_button2_state = gamepad & w4.BUTTON_2 != 0;
     if (curr_button2_state and !prev_button2_state and beam == 0) {

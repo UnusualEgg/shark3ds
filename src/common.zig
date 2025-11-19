@@ -76,14 +76,16 @@ pub fn blit(data: [*]const u8, x: i32, y: i32, width: u32, height: u32, flags: u
             }
         },
         .@"2bb" => {
-            const pixels: [*]const u2 = @ptrCast(data);
+            // const pixels: [*]const u2 = @ptrCast(data);
             var px: u32 = 0;
             var py: u32 = 0;
             for (0..width * height) |pi| {
-                const b = pixels[pi];
+                // const b = pixels[pi];
+                const b: u2 = @truncate(data[pi / 4] >> @intCast(6 - ((pi % 4) * 2)));
+
                 const screen_px = @as(i32, @intCast(px)) + x;
                 const screen_py = @as(i32, @intCast(py)) + y;
-                if (screen_px > 0 and screen_py > 0 and screen_px < SCREEN_SIZE and screen_py < SCREEN_SIZE) {
+                if (screen_px >= 0 and screen_py >= 0 and screen_px < SCREEN_SIZE and screen_py < SCREEN_SIZE) {
                     const uscreen_x = @as(u32, @intCast(screen_px));
                     const uscreen_y = @as(u32, @intCast(screen_py));
                     const index = uscreen_x + (uscreen_y * SCREEN_SIZE);
@@ -139,18 +141,19 @@ pub fn text(str: []const u8, x: i32, y: i32) void {
 pub fn rect(x: i32, y: i32, width: u32, height: u32) void {
     var px = x;
     var py = y;
-    while (py < height) : ({
+    while (py - y < height) : ({
         px = x;
         py += 1;
     }) {
-        if (py < 0 or py > SCREEN_SIZE) continue;
-        while (px < width) : (px += 1) {
-            if (px < 0 or px > SCREEN_SIZE) continue;
+        if (py < 0 or py >= SCREEN_SIZE) continue;
+        while (px - x < width) : (px += 1) {
+            if (px < 0 or px >= SCREEN_SIZE) continue;
             const index: usize = @intCast(px + (py * SCREEN_SIZE));
+            if (_draw_colors.color1 != 0) {
+                _fb[index] = @truncate(_draw_colors.color1 - 1);
+            }
             if (_draw_colors.color2 != 0 and (px == 0 or py == 0 or px == width or py == width)) {
                 _fb[index] = @truncate(_draw_colors.color2 - 1);
-            } else if (_draw_colors.color1 != 0) {
-                _fb[index] = @truncate(_draw_colors.color1 - 1);
             }
         }
     }
