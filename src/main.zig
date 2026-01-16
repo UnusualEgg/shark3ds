@@ -15,6 +15,7 @@ pub const SDL_WINDOW_FULLSCREEN: u64 = 1;
 pub const SDL_WINDOW_HIDDEN: u64 = 8;
 
 const atlas_img = @embedFile("atlas.png");
+const title_img = @embedFile("title.png");
 
 const GamePad = packed struct(u8) {
     @"1": bool,
@@ -28,6 +29,14 @@ const GamePad = packed struct(u8) {
 };
 var fbsdl: [common.SCREEN_SIZE * common.SCREEN_SIZE]u32 = @splat(0);
 var fb: [common.SCREEN_SIZE * common.SCREEN_SIZE]u2 = @splat(0);
+
+fn import_img(ren: *sdl.Renderer, bytes: []const u8) !sdl.Texture {
+    const stream = try sdl.IOStream.fromConstMem(bytes.ptr, bytes.len);
+    const surface = try sdl.loadPngIo(stream, true);
+    const texture = try sdl.Texture.createFromSurface(ren, surface);
+    surface.deinit();
+    return texture;
+}
 
 pub export fn main(argc: c_int, argv: [*][*:0]u8) callconv(.c) c_int {
     _ = argc;
@@ -51,41 +60,35 @@ fn Main() !void {
         C.SDL_Log("Init Error! %s", C.SDL_GetError());
         return E.sdl;
     }
-    defer C.SDL_Quit();
-    const w = sdl.CreateWindow("", 1, 1, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIDDEN) orelse {
-        C.SDL_Log("Init Error! %s", C.SDL_GetError());
-        return E.sdl;
-    };
-    defer C.SDL_DestroyWindow(w);
     defer sdl.quit();
+    const w = try sdl.createWindow("", 1, 1, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIDDEN);
+    defer sdl.destoryWindow(w);
 
-    const prop: u32 = C.SDL_CreateProperties();
-    _ = C.SDL_SetBooleanProperty(prop, C.SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, true);
-    _ = C.SDL_SetPointerProperty(prop, C.SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, w);
-    const ren = C.SDL_CreateRendererWithProperties(prop) orelse {
-        C.SDL_DestroyProperties(prop);
-        C.SDL_Log("Init Error! %s", C.SDL_GetError());
-        return E.sdl;
+    const ren = blk: {
+        const prop = try sdl.Properties.init();
+        defer prop.deinit();
+        try prop.setNumber(C.SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, 1);
+        try prop.setPointer(C.SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, w);
+        break :blk try sdl.Renderer.createWithProperties(prop);
     };
-    C.SDL_DestroyProperties(prop);
+    defer ren.deinit();
+
     _ = DS.consoleInit(DS.GFX_BOTTOM, null);
     _ = std.c.printf("Hello\n");
-    r = C.SDL_SetRenderLogicalPresentation(ren, 160, 160, C.SDL_LOGICAL_PRESENTATION_LETTERBOX);
-    defer C.SDL_DestroyRenderer(ren);
+    try ren.setLogicalPresentation(160, 160, .LETTERBOX);
 
-    const stream = try sdl.IoFromConstMem(atlas_img, atlas_img.len);
-    const atals_surface = try sdl.loadPngIo(stream, true);
-    const tex_atlas = try sdl.createTextureFromSurface(ren, atals_surface);
-    sdl.destorySurface(atals_surface);
-    defer sdl.destroyTexture(tex_atlas);
+    const tex_atlas = try import_img(ren, atlas_img);
+    defer tex_atlas.deinit();
+    const tex_title = try import_img(ren, title_img);
+    defer tex_title.deinit();
 
-    const FORMAT = C.SDL_PIXELFORMAT_RGBA32;
+    const FORMAT = sdl.PixelFormat.RGBA32;
     // const tex = C.SDL_CreateTexture(ren, FORMAT, C.SDL_TEXTUREACCESS_STREAMING, 160, 160) orelse {
     //     C.SDL_Log("Init Error! %s", C.SDL_GetError());
     //     return E.sdl;
     // };
     // defer C.SDL_DestroyTexture(tex);
-    try sdl.setTextureScaleMode(tex_atlas, .pixelart);
+    try tex_atlas.setScaleMode(.pixelart);
     // if (!r) {
     //     C.SDL_Log("texutre scale mode error: %s", C.SDL_GetError());
     //     return E.sdl;
@@ -110,7 +113,7 @@ fn Main() !void {
 
     shark.start();
 
-    const full: C.SDL_Rect = .{ .x = 0, .y = 0, .w = 160, .h = 160 };
+    // const full: C.SDL_Rect = .{ .x = 0, .y = 0, .w = 160, .h = 160 };
     main_loop: while (true) {
         var e: C.SDL_Event = undefined;
         while (C.SDL_PollEvent(&e)) {
@@ -130,7 +133,6 @@ fn Main() !void {
             b.* = 0;
         }
         // _ = printf("shark.update()\n");
-        shark.update();
         //update screen from common._fb
         // C.SDL_SetPaletteColors(palette: [*c]struct_SDL_Palette, colors: [*c]const struct_SDL_Color, firstcolor: c_int, ncolors: c_int)
         // for (fb, 0..) |b, i| {
@@ -143,22 +145,22 @@ fn Main() !void {
         // _ = C.SDL_GetCurrentTime(&ticks);
         // _ = printf("update %lu ns @ %lu\n", C.SDL_GetPerformanceCounter(), C.SDL_GetPerformanceFrequency());
 
-        r = C.SDL_SetRenderDrawColor(ren, 20, 20, 20, 255);
+        r = ren.setDrawColor(20, 20, 20, 255);
         if (!r) break;
         r = C.SDL_RenderClear(ren);
         if (!r) break;
 
+        shark.update(ren, tex_atlas, title_img);
         // ticks = C.SDL_GetTicksNS();
-        r = C.SDL_RenderTexture(ren, tex, null, null);
-        if (!r) break;
+        // r = C.SDL_RenderTexture(ren, tex, null, null);
+        // if (!r) break;
 
-        _ = C.SDL_SetRenderDrawColor(ren, 20, 20, 255, 255);
-        _ = C.SDL_RenderFillRect(ren, &C.SDL_FRect{ .x = 0, .y = 0, .w = 30, .h = 40 });
+        try ren.setDrawColor(20, 20, 255, 255);
+        try ren.renderFillRect(C.SDL_FRect{ .x = 0, .y = 0, .w = 30, .h = 40 });
         // _ = printf("render %lu ns ", C.SDL_GetTicksNS() - ticks);
 
         // ticks = C.SDL_GetTicksNS();
-        r = C.SDL_RenderPresent(ren);
-        if (!r) break;
+        try ren.present();
         // _ = printf("present %lu ns\n", C.SDL_GetTicksNS() - ticks);
     }
     _ = std.c.printf("SDL Errr: %s\n", C.SDL_GetError());
