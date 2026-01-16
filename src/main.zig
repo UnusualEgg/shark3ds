@@ -6,13 +6,15 @@ const C = @cImport({
 const DS = @cImport({
     @cInclude("3ds.h");
 });
+const sdl = @import("sdl.zig");
 const common = @import("common.zig");
 const printf = std.c.printf;
 
 const shark = @import("shark.zig");
-pub extern fn SDL_CreateWindow(title: [*c]const u8, w: c_int, h: c_int, flags: u64) ?*C.SDL_Window;
 pub const SDL_WINDOW_FULLSCREEN: u64 = 1;
 pub const SDL_WINDOW_HIDDEN: u64 = 8;
+
+const atlas_img = @embedFile("atlas.png");
 
 const GamePad = packed struct(u8) {
     @"1": bool,
@@ -50,37 +52,44 @@ fn Main() !void {
         return E.sdl;
     }
     defer C.SDL_Quit();
-    const w = SDL_CreateWindow("", 1, 1, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIDDEN) orelse {
+    const w = sdl.CreateWindow("", 1, 1, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIDDEN) orelse {
         C.SDL_Log("Init Error! %s", C.SDL_GetError());
         return E.sdl;
     };
     defer C.SDL_DestroyWindow(w);
-    defer C.SDL_Quit();
+    defer sdl.quit();
 
     const prop: u32 = C.SDL_CreateProperties();
     _ = C.SDL_SetBooleanProperty(prop, C.SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, true);
     _ = C.SDL_SetPointerProperty(prop, C.SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, w);
     const ren = C.SDL_CreateRendererWithProperties(prop) orelse {
+        C.SDL_DestroyProperties(prop);
         C.SDL_Log("Init Error! %s", C.SDL_GetError());
         return E.sdl;
     };
+    C.SDL_DestroyProperties(prop);
     _ = DS.consoleInit(DS.GFX_BOTTOM, null);
     _ = std.c.printf("Hello\n");
-    C.SDL_DestroyProperties(prop);
     r = C.SDL_SetRenderLogicalPresentation(ren, 160, 160, C.SDL_LOGICAL_PRESENTATION_LETTERBOX);
     defer C.SDL_DestroyRenderer(ren);
 
-    const FORMAT = C.SDL_PIXELFORMAT_XRGB32;
-    const tex = C.SDL_CreateTexture(ren, FORMAT, C.SDL_TEXTUREACCESS_STREAMING, 160, 160) orelse {
-        C.SDL_Log("Init Error! %s", C.SDL_GetError());
-        return E.sdl;
-    };
-    defer C.SDL_DestroyTexture(tex);
-    r = C.SDL_SetTextureScaleMode(tex, C.SDL_SCALEMODE_NEAREST);
-    if (!r) {
-        C.SDL_Log("texutre scale mode error: %s", C.SDL_GetError());
-        return E.sdl;
-    }
+    const stream = try sdl.IoFromConstMem(atlas_img, atlas_img.len);
+    const atals_surface = try sdl.loadPngIo(stream, true);
+    const tex_atlas = try sdl.createTextureFromSurface(ren, atals_surface);
+    sdl.destorySurface(atals_surface);
+    defer sdl.destroyTexture(tex_atlas);
+
+    const FORMAT = C.SDL_PIXELFORMAT_RGBA32;
+    // const tex = C.SDL_CreateTexture(ren, FORMAT, C.SDL_TEXTUREACCESS_STREAMING, 160, 160) orelse {
+    //     C.SDL_Log("Init Error! %s", C.SDL_GetError());
+    //     return E.sdl;
+    // };
+    // defer C.SDL_DestroyTexture(tex);
+    try sdl.setTextureScaleMode(tex_atlas, .pixelart);
+    // if (!r) {
+    //     C.SDL_Log("texutre scale mode error: %s", C.SDL_GetError());
+    //     return E.sdl;
+    // }
 
     const format_details = C.SDL_GetPixelFormatDetails(FORMAT);
 
@@ -97,9 +106,11 @@ fn Main() !void {
     common._palette[2] = C.SDL_MapRGB(format_details, null, 0x1d, 0x45, 0x6d);
     common._palette[3] = C.SDL_MapRGB(format_details, null, 0x58, 0xdd, 0x58);
     common._fb = &fb;
+    // C.SDL_VERSION
 
     shark.start();
 
+    const full: C.SDL_Rect = .{ .x = 0, .y = 0, .w = 160, .h = 160 };
     main_loop: while (true) {
         var e: C.SDL_Event = undefined;
         while (C.SDL_PollEvent(&e)) {
@@ -121,27 +132,34 @@ fn Main() !void {
         // _ = printf("shark.update()\n");
         shark.update();
         //update screen from common._fb
-        //TODO this breaks it
-        // if (C.SDL_GetGamepadButton(gp, C.SDL_GAMEPAD_BUTTON_LABEL_X)) {
-        for (fb, 0..) |b, i| {
-            fbsdl[i] = common._palette[b];
-        }
-        fbsdl[0] = C.SDL_MapRGB(format_details, null, 255, 30, 30);
+        // C.SDL_SetPaletteColors(palette: [*c]struct_SDL_Palette, colors: [*c]const struct_SDL_Color, firstcolor: c_int, ncolors: c_int)
+        // for (fb, 0..) |b, i| {
+        //     fbsdl[i] = common._palette[b];
         // }
-        const full: C.SDL_Rect = .{ .x = 0, .y = 0, .w = 160, .h = 160 };
-        r = C.SDL_UpdateTexture(tex, &full, &fbsdl, 160 * 4);
-        if (!r) break;
+        // fbsdl[0] = C.SDL_MapRGB(format_details, null, 255, 30, 30);
+        // r = C.SDL_UpdateTexture(tex, &full, &fbsdl, 160 * 4);
+        // if (!r) break;
+        // var ticks: i64 = 0;
+        // _ = C.SDL_GetCurrentTime(&ticks);
+        // _ = printf("update %lu ns @ %lu\n", C.SDL_GetPerformanceCounter(), C.SDL_GetPerformanceFrequency());
 
         r = C.SDL_SetRenderDrawColor(ren, 20, 20, 20, 255);
         if (!r) break;
         r = C.SDL_RenderClear(ren);
         if (!r) break;
 
+        // ticks = C.SDL_GetTicksNS();
         r = C.SDL_RenderTexture(ren, tex, null, null);
         if (!r) break;
 
+        _ = C.SDL_SetRenderDrawColor(ren, 20, 20, 255, 255);
+        _ = C.SDL_RenderFillRect(ren, &C.SDL_FRect{ .x = 0, .y = 0, .w = 30, .h = 40 });
+        // _ = printf("render %lu ns ", C.SDL_GetTicksNS() - ticks);
+
+        // ticks = C.SDL_GetTicksNS();
         r = C.SDL_RenderPresent(ren);
         if (!r) break;
+        // _ = printf("present %lu ns\n", C.SDL_GetTicksNS() - ticks);
     }
     _ = std.c.printf("SDL Errr: %s\n", C.SDL_GetError());
 }

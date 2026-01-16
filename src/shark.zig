@@ -1,5 +1,7 @@
 const w4 = @import("common.zig");
 const std = @import("std");
+const sdl = @import("sdl.zig");
+//TODO use sdl and the texture atlas from main.zig
 
 pub const surfer_width = 26;
 pub const surfer_height = 26;
@@ -46,7 +48,7 @@ var shark_alive: bool = true;
 var prev_button2_state: bool = false;
 var moved: bool = false;
 const data = [1]u8{0b1111_1111};
-pub fn update() void {
+pub fn update(ren: *sdl.Renderer) void {
     //update
     const gamepad = w4.GAMEPAD1.*;
 
@@ -102,9 +104,10 @@ pub fn update() void {
         if (!shark_alive) 0 else if (surfer_speed >= (max_speed * (2.0 / 3.0))) 2 else if (surfer_speed > (max_speed / 3.0)) 1 else 0;
     //draw
     if (!moved) {
-        w4.DRAW_COLORS.* = 2;
-        const title: []const u8 = "My dream game :3";
-        w4.text(title, (160 / 2) - ((title.len / 2) * w4.FONT_SIZE), 10);
+        //TODO draw the texture using title.png
+        // w4.DRAW_COLORS.* = 2;
+        // const title: []const u8 = "My dream game :3";
+        // w4.text(title, (160 / 2) - ((title.len / 2) * w4.FONT_SIZE), 10);
     }
 
     draw_water(@intFromFloat(surfer_speed));

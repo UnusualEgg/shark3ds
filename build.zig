@@ -75,6 +75,9 @@ pub fn build(b: *std.Build) void {
     exe.root_module.linkSystemLibrary("SDL3", .{
         .preferred_link_mode = .static,
     });
+    exe.root_module.linkSystemLibrary("SDL3_ttf", .{
+        .preferred_link_mode = .static,
+    });
     exe.root_module.linkSystemLibrary("ctru", .{
         .preferred_link_mode = .static,
     });
@@ -106,7 +109,7 @@ pub fn build(b: *std.Build) void {
         "zig-out/sdlzig.3dsx",
     });
     dsx.step.dependOn(&comp.step);
-    comp.step.dependOn(&exe.step);
+    // comp.step.dependOn(&exe.step);
 
     b.getInstallStep().dependOn(&dsx.step);
 
