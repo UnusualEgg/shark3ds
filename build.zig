@@ -106,7 +106,7 @@ pub fn build(b: *std.Build) void {
     const dsx = b.addSystemCommand(&.{
         devkitpro ++ "/tools/bin/3dsxtool" ++ extension,
         "zig-out/zig-3ds.elf",
-        "zig-out/sdlzig.3dsx",
+        "zig-out/dream_shark.3dsx",
     });
     dsx.step.dependOn(&comp.step);
     // comp.step.dependOn(&exe.step);
