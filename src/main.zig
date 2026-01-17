@@ -55,12 +55,7 @@ const E = error{
     sdl,
 };
 fn Main() !void {
-    var r: bool = undefined;
-    r = sdl.init(.{ .gamepad = true, .video = true });
-    if (!r) {
-        C.SDL_Log("Init Error! %s", C.SDL_GetError());
-        return E.sdl;
-    }
+    try sdl.init(.{ .gamepad = true, .video = true });
     defer sdl.quit();
     const w = try sdl.createWindow("", 1, 1, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIDDEN);
     defer sdl.destoryWindow(w);
