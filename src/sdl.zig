@@ -1,7 +1,30 @@
 const C = @cImport({
     @cInclude("SDL3/SDL.h");
 });
+const endian = @import("builtin").target.cpu.arch.endian();
 pub const raw = C;
+
+extern fn SDL_Init(flags: u32) bool;
+pub const InitFlags = struct {
+    audio: bool = false,
+    video: bool = false,
+    joystick: bool = false,
+    haptic: bool = false,
+    gamepad: bool = false,
+    events: bool = false,
+    sensor: bool = false,
+};
+pub fn init(flags: InitFlags) !void {
+    var v: c_uint = 0;
+    if (flags.audio) v |= 0x00000010;
+    if (flags.video) v |= 0x00000020;
+    if (flags.joystick) v |= 0x00000200;
+    if (flags.haptic) v |= 0x00001000;
+    if (flags.gamepad) v |= 0x00002000;
+    if (flags.events) v |= 0x00004000;
+    if (flags.sensor) v |= 0x00008000;
+    return wrapBool(SDL_Init(v));
+}
 
 pub const PixelFormat = enum(c_uint) {
     UNKNOWN = 0,
@@ -35,40 +58,50 @@ pub const PixelFormat = enum(c_uint) {
     BGRX8888 = 375789572,
     ARGB8888 = 372645892,
     RGBA8888 = 373694468,
-    // ABGR8888 = 376840196,
-    // BGRA8888 = 377888772,
-    // XRGB2101010 = 370614276,
-    // XBGR2101010 = 374808580,
-    // ARGB2101010 = 372711428,
-    // ABGR2101010 = 376905732,
-    // RGB48 = 403714054,
-    // BGR48 = 406859782,
-    // RGBA64 = 404766728,
-    // ARGB64 = 405815304,
-    // BGRA64 = 407912456,
-    // ABGR64 = 408961032,
-    // RGB48_FLOAT = 437268486,
-    // BGR48_FLOAT = 440414214,
-    // RGBA64_FLOAT = 438321160,
-    // ARGB64_FLOAT = 439369736,
-    // BGRA64_FLOAT = 441466888,
-    // ABGR64_FLOAT = 442515464,
-    // RGB96_FLOAT = 454057996,
-    // BGR96_FLOAT = 457203724,
-    // RGBA128_FLOAT = 455114768,
-    // ARGB128_FLOAT = 456163344,
-    // BGRA128_FLOAT = 458260496,
-    // ABGR128_FLOAT = 459309072,
-    // YV12 = 842094169,
-    // IYUV = 1448433993,
-    // YUY2 = 844715353,
-    // UYVY = 1498831189,
-    // YVYU = 1431918169,
-    // NV12 = 842094158,
-    // NV21 = 825382478,
-    // P010 = 808530000,
-    // EXTERNAL_OES = 542328143,
-    // MJPG = 1196444237,
+    ABGR8888 = 376840196,
+    BGRA8888 = 377888772,
+    XRGB2101010 = 370614276,
+    XBGR2101010 = 374808580,
+    ARGB2101010 = 372711428,
+    ABGR2101010 = 376905732,
+    RGB48 = 403714054,
+    BGR48 = 406859782,
+    RGBA64 = 404766728,
+    ARGB64 = 405815304,
+    BGRA64 = 407912456,
+    ABGR64 = 408961032,
+    RGB48_FLOAT = 437268486,
+    BGR48_FLOAT = 440414214,
+    RGBA64_FLOAT = 438321160,
+    ARGB64_FLOAT = 439369736,
+    BGRA64_FLOAT = 441466888,
+    ABGR64_FLOAT = 442515464,
+    RGB96_FLOAT = 454057996,
+    BGR96_FLOAT = 457203724,
+    RGBA128_FLOAT = 455114768,
+    ARGB128_FLOAT = 456163344,
+    BGRA128_FLOAT = 458260496,
+    ABGR128_FLOAT = 459309072,
+    YV12 = 842094169,
+    IYUV = 1448433993,
+    YUY2 = 844715353,
+    UYVY = 1498831189,
+    YVYU = 1431918169,
+    NV12 = 842094158,
+    NV21 = 825382478,
+    P010 = 808530000,
+    EXTERNAL_OES = 542328143,
+    MJPG = 1196444237,
+    // Aliases for RGBA byte arrays of color data, for the current platform
+    pub const RGBA32: PixelFormat = if (endian == .big) .RGBA8888 else .ABGR8888;
+    pub const ARGB32: PixelFormat = if (endian == .big) .ARGB8888 else .BGRA8888;
+    pub const BGRA32: PixelFormat = if (endian == .big) .BGRA8888 else .ARGB8888;
+    pub const ABGR32: PixelFormat = if (endian == .big) .ABGR8888 else .RGBA8888;
+    pub const RGBX32: PixelFormat = if (endian == .big) .RGBX8888 else .XBGR8888;
+    pub const XRGB32: PixelFormat = if (endian == .big) .XRGB8888 else .BGRX8888;
+    pub const BGRX32: PixelFormat = if (endian == .big) .BGRX8888 else .XRGB8888;
+    pub const XBGR32: PixelFormat = if (endian == .big) .XBGR8888 else .RGBX8888;
+
     // RGBA32 = 376840196,
     // ARGB32 = 377888772,
     // BGRA32 = 372645892,
@@ -77,7 +110,13 @@ pub const PixelFormat = enum(c_uint) {
     // XRGB32 = 375789572,
     // BGRX32 = 370546692,
     // XBGR32 = 371595268,
+    extern fn SDL_GetPixelFormatDetails(format: PixelFormat) ?*const PixelFormatDetails;
+    pub fn getDetails(self: PixelFormat) !*const PixelFormatDetails {
+        return try wrap(*const PixelFormatDetails, SDL_GetPixelFormatDetails(self));
+    }
 };
+pub const PixelFormatDetails = C.SDL_PixelFormatDetails;
+
 pub const Window = C.SDL_Window;
 pub const Renderer = opaque {
     const Self = @This();
@@ -95,19 +134,19 @@ pub const Renderer = opaque {
     }
 
     extern fn SDL_RenderFillRect(renderer: ?*Renderer, rect: *const FRect) bool;
-    pub fn renderFillRect(self: *Self, rect: FRect) !void {
+    pub fn renderFillRect(self: *Self, rect: *const FRect) !void {
         return wrapBool(SDL_RenderFillRect(self, rect));
     }
     extern fn SDL_RenderTexture(renderer: *Renderer, texture: *Texture, srcrect: ?*const FRect, dstrect: ?*const FRect) bool;
-    pub fn renderTexture(self: *Self, texture: *Texture, srcrect: ?*FRect, dstrect: ?*FRect) !void {
+    pub fn renderTexture(self: *Self, texture: *Texture, srcrect: ?*const FRect, dstrect: ?*const FRect) !void {
         return wrapBool(SDL_RenderTexture(self, texture, srcrect, dstrect));
     }
 
     extern fn SDL_RenderTextureRotated(
         renderer: *Renderer,
         texture: *Texture,
-        srcrect: *const FRect,
-        dstrect: *const FRect,
+        srcrect: ?*const FRect,
+        dstrect: ?*const FRect,
         angle: f64,
         center: *const FPoint,
         flip: FlipMode,
@@ -121,7 +160,11 @@ pub const Renderer = opaque {
         center: FPoint,
         flip: FlipMode,
     ) !void {
-        return wrapBool(SDL_RenderTextureRotated(self, texture, srcrect, dstrect, angle, center, flip));
+        return wrapBool(SDL_RenderTextureRotated(self, texture, srcrect, dstrect, angle, &center, flip));
+    }
+    extern fn SDL_RenderClear(renderer: *Renderer) bool;
+    pub fn clear(self: *Renderer) !void {
+        return wrapBool(SDL_RenderClear(self));
     }
 
     extern fn SDL_RenderPresent(renderer: *Renderer) bool;
@@ -200,13 +243,13 @@ pub const Texture = extern struct {
     extern fn SDL_CreateTextureFromSurface(renderer: *Renderer, surface: *Surface) ?*Texture;
     /// doesn't free surface
     pub fn createFromSurface(renderer: *Renderer, surface: *Surface) !*Texture {
-        return wrap(SDL_CreateTextureFromSurface(renderer, surface));
+        return wrap(*Texture, SDL_CreateTextureFromSurface(renderer, surface));
     }
 };
 pub const IOStream = opaque {
     extern fn SDL_IOFromConstMem(mem: *const anyopaque, size: usize) ?*IOStream;
     pub fn fromConstMem(mem: *const anyopaque, size: usize) !*IOStream {
-        return wrap(SDL_IOFromConstMem(mem, size));
+        return wrap(*IOStream, SDL_IOFromConstMem(mem, size));
     }
 };
 pub const Color = extern struct { r: u8, g: u8, b: u8, a: u8 };
@@ -220,7 +263,7 @@ inline fn wrap(T: type, ret: ?T) error{sdl}!T {
     };
 }
 inline fn wrapBool(ret: bool) error{sdl}!void {
-    if (ret) {
+    if (!ret) {
         C.SDL_Log("SDL Error! %s", C.SDL_GetError());
         return error.sdl;
     }

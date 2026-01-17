@@ -16,6 +16,7 @@ pub const SDL_WINDOW_HIDDEN: u64 = 8;
 
 const atlas_img = @embedFile("atlas.png");
 const title_img = @embedFile("title.png");
+const water_img = @embedFile("water.png");
 
 const GamePad = packed struct(u8) {
     @"1": bool,
@@ -27,10 +28,10 @@ const GamePad = packed struct(u8) {
     up: bool,
     down: bool,
 };
-var fbsdl: [common.SCREEN_SIZE * common.SCREEN_SIZE]u32 = @splat(0);
-var fb: [common.SCREEN_SIZE * common.SCREEN_SIZE]u2 = @splat(0);
+// var fbsdl: [common.SCREEN_SIZE * common.SCREEN_SIZE]u32 = @splat(0);
+// var fb: [common.SCREEN_SIZE * common.SCREEN_SIZE]u2 = @splat(0);
 
-fn import_img(ren: *sdl.Renderer, bytes: []const u8) !sdl.Texture {
+fn import_img(ren: *sdl.Renderer, bytes: []const u8) !*sdl.Texture {
     const stream = try sdl.IOStream.fromConstMem(bytes.ptr, bytes.len);
     const surface = try sdl.loadPngIo(stream, true);
     const texture = try sdl.Texture.createFromSurface(ren, surface);
@@ -55,7 +56,7 @@ const E = error{
 };
 fn Main() !void {
     var r: bool = undefined;
-    r = C.SDL_Init(C.SDL_INIT_VIDEO | C.SDL_INIT_GAMEPAD);
+    r = sdl.init(.{ .gamepad = true, .video = true });
     if (!r) {
         C.SDL_Log("Init Error! %s", C.SDL_GetError());
         return E.sdl;
@@ -79,39 +80,18 @@ fn Main() !void {
 
     const tex_atlas = try import_img(ren, atlas_img);
     defer tex_atlas.deinit();
+    try tex_atlas.setScaleMode(.pixelart);
+
     const tex_title = try import_img(ren, title_img);
     defer tex_title.deinit();
+    try tex_title.setScaleMode(.pixelart);
 
-    const FORMAT = sdl.PixelFormat.RGBA32;
-    // const tex = C.SDL_CreateTexture(ren, FORMAT, C.SDL_TEXTUREACCESS_STREAMING, 160, 160) orelse {
-    //     C.SDL_Log("Init Error! %s", C.SDL_GetError());
-    //     return E.sdl;
-    // };
-    // defer C.SDL_DestroyTexture(tex);
-    try tex_atlas.setScaleMode(.pixelart);
-    // if (!r) {
-    //     C.SDL_Log("texutre scale mode error: %s", C.SDL_GetError());
-    //     return E.sdl;
-    // }
-
-    const format_details = C.SDL_GetPixelFormatDetails(FORMAT);
+    const tex_water = try import_img(ren, water_img);
+    defer tex_water.deinit();
+    try tex_water.setScaleMode(.pixelart);
 
     const gp = C.SDL_OpenGamepad(1);
     const gp1: *GamePad = @ptrCast(&common._gamepad1);
-
-    //WASM-4 init
-    //0x5995d1, //sky blue (light)
-    //0xffffff, //white
-    //0x1d456d, //water blue (dark)
-    //0x58dd58, //green
-    common._palette[0] = C.SDL_MapRGB(format_details, null, 0x59, 0x95, 0xd1);
-    common._palette[1] = C.SDL_MapRGB(format_details, null, 0xff, 0xff, 0xff);
-    common._palette[2] = C.SDL_MapRGB(format_details, null, 0x1d, 0x45, 0x6d);
-    common._palette[3] = C.SDL_MapRGB(format_details, null, 0x58, 0xdd, 0x58);
-    common._fb = &fb;
-    // C.SDL_VERSION
-
-    shark.start();
 
     // const full: C.SDL_Rect = .{ .x = 0, .y = 0, .w = 160, .h = 160 };
     main_loop: while (true) {
@@ -129,9 +109,9 @@ fn Main() !void {
         gp1.@"2" = (C.SDL_GetGamepadButton(gp, C.SDL_GAMEPAD_BUTTON_LABEL_B));
 
         //clear
-        for (&fb) |*b| {
-            b.* = 0;
-        }
+        // for (&fb) |*b| {
+        //     b.* = 0;
+        // }
         // _ = printf("shark.update()\n");
         //update screen from common._fb
         // C.SDL_SetPaletteColors(palette: [*c]struct_SDL_Palette, colors: [*c]const struct_SDL_Color, firstcolor: c_int, ncolors: c_int)
@@ -145,18 +125,16 @@ fn Main() !void {
         // _ = C.SDL_GetCurrentTime(&ticks);
         // _ = printf("update %lu ns @ %lu\n", C.SDL_GetPerformanceCounter(), C.SDL_GetPerformanceFrequency());
 
-        r = ren.setDrawColor(20, 20, 20, 255);
-        if (!r) break;
-        r = C.SDL_RenderClear(ren);
-        if (!r) break;
+        try ren.setDrawColor(0x59, 0x95, 0xd1, 255);
+        try ren.clear();
 
-        shark.update(ren, tex_atlas, title_img);
+        // try ren.setDrawColor(20, 20, 255, 255);
+        // try ren.renderFillRect(&.{ .x = 0, .y = 0, .w = 30, .h = 40 });
+        try shark.update(ren, tex_atlas, tex_title, tex_water);
         // ticks = C.SDL_GetTicksNS();
         // r = C.SDL_RenderTexture(ren, tex, null, null);
         // if (!r) break;
 
-        try ren.setDrawColor(20, 20, 255, 255);
-        try ren.renderFillRect(C.SDL_FRect{ .x = 0, .y = 0, .w = 30, .h = 40 });
         // _ = printf("render %lu ns ", C.SDL_GetTicksNS() - ticks);
 
         // ticks = C.SDL_GetTicksNS();
